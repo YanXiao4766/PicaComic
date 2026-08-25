@@ -22,7 +22,22 @@ class _HitomiSettingsState extends State<HitomiSettings> {
           title: Text("CDN ${"域名".tl}"),
           subtitle: Text(appdata.settings[87]),
           trailing: IconButton(onPressed: () => changeDomain(context), icon: const Icon(Icons.edit)),
-        )
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_forever),
+          title: Text("重置设置".tl),
+          subtitle: Text("恢复 CDN 域名为默认值".tl),
+          onTap: () {
+            var msg = "${"将 CDN 域名恢复为默认值".tl}\n"
+                "gold-usergeneratedcontent.net";
+            showConfirmDialog(context, "${"确认重置".tl}?", msg, () {
+              appdata.settings[87] = "gold-usergeneratedcontent.net";
+              appdata.updateSettings();
+              setState(() {});
+              showToast(message: "已重置 Hitomi 设置".tl);
+            });
+          },
+        ),
       ],
     );
   }

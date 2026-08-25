@@ -55,7 +55,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.github.pacalini.pica_comic"
+        applicationId "com.github.pacalini.pica_comic.clone"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdkVersion flutter.minSdkVersion
@@ -88,9 +88,9 @@ android {
                 variant.outputs.all { output ->
                     def abi = output.getFilter(com.android.build.OutputFile.ABI)
                     if (abi != null) {   // null for the universal-debug, universal-release variants
-                        outputFileName = "PicaComic-${variant.versionName}-${abi}.apk"
+                        outputFileName = "PicaComic-Clone-${variant.versionName}-${abi}.apk"
                     } else {
-                        outputFileName = "PicaComic-${variant.versionName}.apk"
+                        outputFileName = "PicaComic-Clone-${variant.versionName}.apk"
                     }
                 }
             }

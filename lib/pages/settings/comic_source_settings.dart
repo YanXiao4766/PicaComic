@@ -280,19 +280,26 @@ class _ComicSourceSettingsState extends State<ComicSourceSettings> {
   }
 
   void chooseFile() async {
-    const XTypeGroup typeGroup = XTypeGroup(
-      extensions: <String>['js'],
-    );
-    final XFile? file =
-        await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
-    if (file == null) return;
     try {
+      const XTypeGroup typeGroup = XTypeGroup(
+        extensions: <String>['js'],
+      );
+      log("Opening source file picker", "ComicSource Import");
+      final XFile? file =
+          await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
+      if (file == null) {
+        log("File selection was cancelled", "ComicSource Import");
+        return;
+      }
       var fileName = file.name;
+      log("Selected file: $fileName", "ComicSource Import");
       // file.readAsString 会导致中文乱码
       var bytes = await file.readAsBytes();
       var content = utf8.decode(bytes);
+      log("Read ${bytes.length} bytes from $fileName", "ComicSource Import");
       await addSource(content, fileName);
-    } catch (e) {
+    } catch (e, s) {
+      log("$e\n$s", "ComicSource Import", LogLevel.error);
       showToast(message: e.toString());
     }
   }
@@ -312,24 +319,42 @@ class _ComicSourceSettingsState extends State<ComicSourceSettings> {
     bool cancel = false;
     var controller = showLoadingDialog(App.globalContext!,
         onCancel: () => cancel = true, barrierDismissible: false);
+    bool dialogClosed = false;
+    void closeDialog() {
+      if (!dialogClosed) {
+        controller.close();
+        dialogClosed = true;
+      }
+    }
+
     try {
+      log("Downloading source: $url", "ComicSource Import");
       var res = await logDio()
           .get<String>(url, options: Options(responseType: ResponseType.plain));
       if (cancel) return;
-      controller.close();
+      closeDialog();
+      log("Downloaded ${res.data?.length ?? 0} characters from $url",
+          "ComicSource Import");
       await addSource(res.data!, fileName);
-    } catch (e) {
+    } catch (e, s) {
       if (cancel) return;
+      closeDialog();
+      log("$e\n$s", "ComicSource Import", LogLevel.error);
       showToast(message: e.toString());
     }
   }
 
   Future<void> addSource(String js, String fileName) async {
+    log("Parsing source file: $fileName", "ComicSource Import");
     var comicSource = await ComicSourceParser().createAndParse(js, fileName);
     ComicSource.sources.add(comicSource);
     _addAllPagesWithComicSource(comicSource);
     appdata.updateSettings();
     MyApp.updater?.call();
+    if (mounted) setState(() {});
+    log("Added ${comicSource.name} (key: ${comicSource.key})",
+        "ComicSource Import");
+    showToast(message: "漫画源已添加：${comicSource.name}");
   }
 }
 

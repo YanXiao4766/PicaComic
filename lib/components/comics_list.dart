@@ -32,6 +32,7 @@ class ComicsPageLogic<T> extends StateController {
       if (res.error) {
         message = res.errorMessage;
       } else {
+        current = 1;
         comics = res.data;
         dividedComics = {};
         dividedComics![1] = res.data;
@@ -65,7 +66,8 @@ class ComicsPageLogic<T> extends StateController {
     if (loadingData) return;
     loadingData = true;
     Future.microtask(() => update());
-    var res = await getComics(current + 1);
+    var targetPage = current + 1;
+    var res = await getComics(targetPage);
     if (res.error) {
       showToast(message: res.errorMessage!);
     } else {
@@ -86,8 +88,41 @@ class ComicsPageLogic<T> extends StateController {
         _emptyPageCount = 0;
         comics!.addAll(res.data);
       }
+      current = targetPage;
     }
-    current++;
+    loadingData = false;
+    update();
+  }
+
+  void jumpToPage(
+    Future<Res<List<T>>> Function(int) getComics,
+    int page, {
+    bool replaceLoadedComics = false,
+  }) async {
+    if (page < 1 || (maxPage != null && page > maxPage!)) {
+      showToast(message: "输入的数字不正确".tl);
+      return;
+    }
+    if (loadingData) return;
+    loadingData = true;
+    Future.microtask(() => update());
+    var res = await getComics(page);
+    if (res.error) {
+      showToast(message: res.errorMessage ?? "Network Error");
+    } else {
+      if (res.subData is int) {
+        maxPage = res.subData;
+      }
+      current = page;
+      dividedComics ??= {};
+      dividedComics![page] = res.data;
+      if (replaceLoadedComics) {
+        comics = List<T>.from(res.data);
+        _emptyPageCount = 0;
+      }
+      message = null;
+      loading = false;
+    }
     loadingData = false;
     update();
   }
@@ -97,6 +132,7 @@ class ComicsPageLogic<T> extends StateController {
     loading = true;
     comics = null;
     message = null;
+    current = 1;
     update();
   }
 }
@@ -133,6 +169,12 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
   bool get showPageIndicator => true;
 
   List<ComicTileMenuOption>? get addonMenuOptions => null;
+
+  bool get enableQuickPageJump =>
+      sourceKey == "nhentai" ||
+      sourceKey == "picacg" ||
+      sourceKey == "jm" ||
+      sourceKey == "moeimg";
 
   /// 刷新页面
   void refresh() {
@@ -224,7 +266,7 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                   ],
                 );
               }
-              return SmoothCustomScrollView(
+              Widget body = SmoothCustomScrollView(
                 slivers: [
                   if (title != null)
                     SliverAppbar(
@@ -253,6 +295,19 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                         height: 80,
                       ),
                     )
+                ],
+              );
+              if (!enableQuickPageJump) {
+                return body;
+              }
+              return Stack(
+                children: [
+                  Positioned.fill(child: body),
+                  Positioned(
+                    right: 16,
+                    bottom: 16 + MediaQuery.of(context).padding.bottom,
+                    child: buildQuickPageJumpButton(context, logic),
+                  ),
                 ],
               );
             } else {
@@ -400,7 +455,7 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                   label: Text(
                       "${"页面".tl}: ${logic.current}/${logic.maxPage?.toString() ?? "?"}"),
                   onPressed: () async {
-                    selectPage(logic);
+                    selectPage(logic, getComics);
                   },
                   elevation: 1,
                   side: BorderSide.none,
@@ -457,7 +512,7 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                   Expanded(
                       child: InkWell(
                     onTap: () {
-                      selectPage(logic);
+                      selectPage(logic, getComics);
                     },
                     child: SizedBox.expand(
                       child: Center(
@@ -491,6 +546,57 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
         ));
   }
 
+  Widget buildQuickPageJumpButton(BuildContext context, ComicsPageLogic logic) {
+    return AnimatedOpacity(
+      opacity: logic.loadingData ? 0.75 : 1,
+      duration: const Duration(milliseconds: 150),
+      child: Material(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(24),
+        elevation: 4,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: logic.loadingData
+              ? null
+              : () => selectPage(
+                    logic,
+                    getComics,
+                    replaceLoadedComics: true,
+                  ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (logic.loadingData) ...[
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ] else ...[
+                  const Icon(Icons.find_in_page_outlined, size: 18),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  "${logic.current}/${logic.maxPage?.toString() ?? "?"}",
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void nextPage(ComicsPageLogic logic) {
     if (logic.current == logic.maxPage || logic.current == 0) {
       showToast(message: "已经是最后一页了".tl);
@@ -509,12 +615,17 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
     }
   }
 
-  void selectPage(ComicsPageLogic logic) async {
+  void selectPage(
+    ComicsPageLogic logic,
+    Future<Res<List<T>>> Function(int) getComics, {
+    bool replaceLoadedComics = false,
+  }) async {
     String res = "";
     await showDialog(
         context: App.globalContext!,
         builder: (dialogContext) {
-          var controller = TextEditingController();
+          var controller =
+              TextEditingController(text: logic.current.toString());
           return SimpleDialog(
             title: const Text("切换页面"),
             children: [
@@ -530,7 +641,10 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                     suffixText:
                         "${"输入范围: ".tl}1-${logic.maxPage?.toString() ?? "?"}",
                   ),
+                  autofocus: true,
                   controller: controller,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onSubmitted: (s) {
                     res = s;
                     App.globalBack();
@@ -552,8 +666,11 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
     if (res.isNum) {
       int i = int.parse(res);
       if (logic.maxPage == null || (i > 0 && i <= logic.maxPage!)) {
-        logic.current = i;
-        logic.update();
+        logic.jumpToPage(
+          getComics,
+          i,
+          replaceLoadedComics: replaceLoadedComics,
+        );
         return;
       }
     }
@@ -569,8 +686,7 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
         children: [
           const Icon(Icons.search_off, size: 56),
           const SizedBox(height: 12),
-          Text("无匹配结果".tl,
-              style: Theme.of(context).textTheme.titleMedium),
+          Text("无匹配结果".tl, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
         ],
       ),
@@ -578,7 +694,8 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
   }
 
   Widget buildItem(BuildContext context, T item) {
-    return buildComicTile(context, item, sourceKey, addonMenuOptions: addonMenuOptions);
+    return buildComicTile(context, item, sourceKey,
+        addonMenuOptions: addonMenuOptions);
   }
 }
 
@@ -640,7 +757,7 @@ class _SliverGridComics extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverGrid(
       delegate: SliverChildBuilderDelegate(
-            (context, index) {
+        (context, index) {
           if (index == comics.length - 1) {
             onLastItemBuild?.call();
           }

@@ -106,6 +106,21 @@ class _PicacgSettingsState extends State<PicacgSettings> {
             },
           ),
         ),
+        ListTile(
+          leading: const Icon(Icons.delete_forever),
+          title: Text("清除数据".tl),
+          subtitle: Text("清除 Token 与登录状态".tl),
+          onTap: () {
+            var msg = "${"将清除 picacg 的 Token 与登录状态".tl}\n${"清除后需重新登录".tl}";
+            showConfirmDialog(context, "${"确认清除".tl}?", msg, () {
+              picacg.data['token'] = null;
+              picacg.data['user'] = null;
+              picacg.data['account'] = null;
+              picacg.saveData();
+              showToast(message: "已清除 picacg 数据".tl);
+            });
+          },
+        ),
       ],
     );
   }

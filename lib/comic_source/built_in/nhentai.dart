@@ -53,14 +53,26 @@ final nhentai = ComicSource.named(
       var [_, type, name] = param!.split('/');
       var lang = int.tryParse(appdata.settings[69]) ?? 0;
       if (lang != 0) {
-        return NhentaiNetwork().search(
-          "$type:$name language:${["chinese", "english", "japanese"][lang-1]}",
+        var res = await NhentaiNetwork().search(
+          "$type:$name language:${[
+            "chinese",
+            "english",
+            "japanese"
+          ][lang - 1]}",
           page,
           NhentaiSort.fromValue(options[0]),
         );
+        if (res.error) {
+          return Res.fromErrorRes(res);
+        }
+        return res;
       }
-      return NhentaiNetwork().getCategoryComics(
+      var res = await NhentaiNetwork().getCategoryComics(
           "/$type/$name", page, NhentaiSort.fromValue(options[0]));
+      if (res.error) {
+        return Res.fromErrorRes(res);
+      }
+      return res;
     },
     options: [
       CategoryComicsOptions.named(

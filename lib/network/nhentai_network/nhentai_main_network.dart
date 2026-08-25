@@ -33,6 +33,8 @@ class NhentaiNetwork {
 
   late Dio dio;
 
+  static const _redirectStatusCodes = {301, 302, 307, 308};
+
   Future<void> init() async {
     cookieJar = SingleInstanceCookieJar.instance;
     for (var cookie in cookieJar!.loadForRequest(Uri.parse(baseUrl))) {
@@ -47,7 +49,7 @@ class NhentaiNetwork {
         "Accept-Language": "zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6",
         "Referer": "$baseUrl/",
       },
-      validateStatus: (i) => i == 200 || i == 302,
+      validateStatus: (i) => i == 200 || _redirectStatusCodes.contains(i),
     ));
     dio.interceptors.add(CookieManagerSql(cookieJar!));
     dio.interceptors.add(CloudflareInterceptor());
@@ -59,16 +61,28 @@ class NhentaiNetwork {
   }
 
   Future<Res<String>> get(String url) async {
+    return _get(url, 0);
+  }
+
+  Future<Res<String>> _get(String url, int redirectCount) async {
     if (cookieJar == null) {
       await init();
     }
     try {
-      var res = await dio.get<String>(url, options: Options(followRedirects: false));
-      if (res.statusCode == 302) {
-        var path = res.headers["Location"]?.first ??
+      var res =
+          await dio.get<String>(url, options: Options(followRedirects: false));
+      if (_redirectStatusCodes.contains(res.statusCode)) {
+        if (redirectCount >= 5) {
+          return const Res(null, errorMessage: "Too many redirects");
+        }
+        var location = res.headers["Location"]?.first ??
             res.headers["location"]?.first ??
             "";
-        return get(Uri.parse(url).replace(path: path).toString());
+        if (location.isEmpty) {
+          return const Res(null, errorMessage: "Redirect without location");
+        }
+        var nextUrl = Uri.parse(url).resolve(location).toString();
+        return _get(nextUrl, redirectCount + 1);
       }
       return Res(res.data);
     } catch (e) {
@@ -82,7 +96,8 @@ class NhentaiNetwork {
       await init();
     }
     try {
-      var res = await dio.post<String>(url, data: data, options: Options(headers: headers));
+      var res = await dio.post<String>(url,
+          data: data, options: Options(headers: headers));
       return Res(res.data);
     } catch (e) {
       return Res(null, errorMessage: e.toString());
@@ -102,6 +117,7 @@ class NhentaiNetwork {
     } else if (tags.contains("29963")) {
       lang = "中文";
     }
+    lang = _parseLanguageFromClass(comicDom.className, lang);
     var tagsRes = <String>[];
     for (var tag in tags.split(" ")) {
       if (nhentaiTags[tag] != null) {
@@ -109,6 +125,20 @@ class NhentaiNetwork {
       }
     }
     return NhentaiComicBrief(name, img, id, lang, tagsRes);
+  }
+
+  String _parseLanguageFromClass(String className, String fallback) {
+    var classes = className.split(" ");
+    if (classes.contains("lang-cn")) {
+      return App.locale.languageCode == "zh" ? "中文" : "Chinese";
+    }
+    if (classes.contains("lang-jp")) {
+      return App.locale.languageCode == "zh" ? "日语" : "Japanese";
+    }
+    if (classes.contains("lang-en")) {
+      return App.locale.languageCode == "zh" ? "英语" : "English";
+    }
+    return fallback;
   }
 
   List<T> removeNullValue<T extends Object>(List<T?> list) {
@@ -238,12 +268,11 @@ class NhentaiNetwork {
       }
 
       var document = parse(res.data);
-      
+
       id = id == "" ? document.querySelector("h3#gallery_id")!.text.nums : id;
 
-      var cover = document
-          .querySelector("div#cover > a > img")!
-          .attributes["src"]!;
+      var cover =
+          document.querySelector("div#cover > a > img")!.attributes["src"]!;
 
       var title = combineSpans(document.querySelector("h1.title")!);
 
@@ -329,8 +358,7 @@ class NhentaiNetwork {
     }
     try {
       var document = parse(res.data);
-      var scripts = document
-          .querySelectorAll("script");
+      var scripts = document.querySelectorAll("script");
 
       var script = scripts
           .firstWhere((element) => element.text.contains("media_id"))
@@ -339,7 +367,8 @@ class NhentaiNetwork {
       var galleryData = json.decode(json.decode(script)["body"]);
 
       var url = document
-          .querySelector("#image-container > a > img")!.attributes["src"]!;
+          .querySelector("#image-container > a > img")!
+          .attributes["src"]!;
 
       String baseUrl = url.split('/galleries')[0];
 
@@ -409,14 +438,7 @@ class NhentaiNetwork {
 
   Future<Res<List<NhentaiComicBrief>>> getCategoryComics(
       String path, int page, NhentaiSort sort) async {
-    var param = switch (sort) {
-      NhentaiSort.recent => '/',
-      NhentaiSort.popularToday => '/popular-today',
-      NhentaiSort.popularWeek => '/popular-week',
-      NhentaiSort.popularMonth => '/popular-month',
-      NhentaiSort.popularAll => '/popular'
-    };
-    var res = await get("$baseUrl$path$param?page=$page");
+    var res = await get(_buildCategoryUrl(path, page, sort));
     if (res.error) {
       return Res.fromErrorRes(res);
     }
@@ -451,6 +473,17 @@ class NhentaiNetwork {
       return Res(null, errorMessage: "Failed to Parse Data: $e");
     }
   }
+
+  String _buildCategoryUrl(String path, int page, NhentaiSort sort) {
+    var uri = Uri.parse("$baseUrl$path/");
+    var queryParameters = <String, String>{
+      "page": page.toString(),
+    };
+    if (sort != NhentaiSort.recent) {
+      queryParameters["sort"] = sort.queryValue;
+    }
+    return uri.replace(queryParameters: queryParameters).toString();
+  }
 }
 
 enum NhentaiSort {
@@ -463,6 +496,8 @@ enum NhentaiSort {
   final String value;
 
   const NhentaiSort(this.value);
+
+  String get queryValue => value.replaceFirst("&sort=", "");
 
   static NhentaiSort fromValue(String value) {
     switch (value) {

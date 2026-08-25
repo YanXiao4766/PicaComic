@@ -22,7 +22,30 @@ class _HtSettingsState extends State<HtSettings> {
           title: Text("域名".tl),
           subtitle: Text(appdata.settings[31].replaceFirst("https://", "")),
           trailing: IconButton(onPressed: () => changeDomain(context), icon: const Icon(Icons.edit)),
-        )
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_forever),
+          title: Text("清除数据".tl),
+          subtitle: Text("清除 Cookie 与登录状态".tl),
+          onTap: () {
+            final baseUrl = appdata.settings[31];
+            final cookieJar = SingleInstanceCookieJar.instance!;
+            var cookies = cookieJar.loadForRequest(Uri.parse(baseUrl));
+            var msg = "${"将清除绅士漫画的所有本地数据".tl}\n"
+                "${"Cookie 数量".tl}: ${cookies.length}\n"
+                "${"清除后需重新登录".tl}";
+            showConfirmDialog(context, "${"确认清除".tl}?", msg, () {
+              if (cookies.isNotEmpty) {
+                cookieJar.deleteUri(Uri.parse(baseUrl));
+              }
+              var source = ComicSource.find('htmanga')!;
+              source.data['account'] = null;
+              source.data['name'] = null;
+              source.saveData();
+              showToast(message: "已清除绅士漫画数据".tl);
+            });
+          },
+        ),
       ],
     );
   }

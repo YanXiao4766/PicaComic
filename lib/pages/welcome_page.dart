@@ -113,9 +113,13 @@ mixin class _WelcomePageComponents {
           Button.filled(
               padding: const EdgeInsets.fromLTRB(24, 6, 12, 6),
               onPressed: () async {
-                await ComicSource.reload();
+                appdata.firstUse[3] = "1";
+                await appdata.writeData(false);
+                try {
+                  await ComicSource.reload();
+                } catch (_) {}
                 if (context.mounted) {
-                  context.to(() => const MainPage());
+                  App.offAll(() => const MainPage());
                 }
               },
               disabled: !canNext,

@@ -79,7 +79,34 @@ class _EhSettingsState extends State<EhSettings> {
           title: Text("配置文件".tl),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => App.to(context, () => const EhProfileSelectPage()),
-        )
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_forever),
+          title: Text("清除数据".tl),
+          subtitle: Text("清除 Cookie 与登录状态".tl),
+          onTap: () {
+            final cookieJar = SingleInstanceCookieJar.instance!;
+            var cookies1 = cookieJar.loadForRequest(Uri.parse("https://e-hentai.org"));
+            var cookies2 = cookieJar.loadForRequest(Uri.parse("https://exhentai.org"));
+            var totalCookies = cookies1.length + cookies2.length;
+            var msg = "${"将清除 E-Hentai/ExHentai 的所有本地数据".tl}\n"
+                "${"Cookie 数量".tl}: $totalCookies\n"
+                "${"清除后需重新登录".tl}";
+            showConfirmDialog(context, "${"确认清除".tl}?", msg, () {
+              cookieJar.deleteUri(Uri.parse("https://e-hentai.org"));
+              cookieJar.deleteUri(Uri.parse("https://exhentai.org"));
+              var source = ComicSource.find('ehentai')!;
+              source.data['name'] = null;
+              source.data['account'] = null;
+              source.saveData();
+              EhNetwork().id = '';
+              EhNetwork().hash = '';
+              EhNetwork().igneous = '';
+              EhNetwork().cookiesStr = '';
+              showToast(message: "已清除 E-Hentai 数据".tl);
+            });
+          },
+        ),
       ],
     );
   }

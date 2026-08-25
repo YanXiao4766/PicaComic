@@ -176,6 +176,21 @@ class _JmSettingsState extends State<JmSettings> {
             },
           ),
         ),
+        ListTile(
+          leading: const Icon(Icons.delete_forever),
+          title: Text("清除数据".tl),
+          subtitle: Text("清除登录状态".tl),
+          onTap: () {
+            var msg = "${"将清除 JM 的登录状态".tl}\n${"清除后需重新登录".tl}";
+            showConfirmDialog(context, "${"确认清除".tl}?", msg, () {
+              jmNetwork.logout();
+              jm.data['account'] = null;
+              jm.data['name'] = null;
+              jm.saveData();
+              showToast(message: "已清除 JM 数据".tl);
+            });
+          },
+        ),
       ],
     );
   }

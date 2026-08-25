@@ -13,23 +13,23 @@ class _NhSettingsState extends State<NhSettings> {
 
   String baseUrl = "https://nhentai.net";
 
-  void deleteAllCookie() async {
+  void clearData() async {
     final cookieJar = SingleInstanceCookieJar.instance!;
     var cookies = cookieJar.loadForRequest(Uri.parse(baseUrl));
-    if (cookies.isEmpty) {
-      showToast(message: "cookie 为空".tl);
-      return;
-    } else {
-      var title = "${"确认删除".tl}?";
-      var msg = "${"删除全部".tl}(${cookies.length}) nhentai cookie\n${"删除后需重新登录".tl}\n";
-      showConfirmDialog(App.globalContext!, title, msg, () {
-        NhentaiNetwork().logged = false;
+    var title = "${"确认清除".tl}?";
+    var msg = "${"将清除 nhentai 的所有本地数据".tl}\n"
+        "${"Cookie 数量".tl}: ${cookies.length}\n"
+        "${"清除后需重新登录".tl}\n";
+    showConfirmDialog(App.globalContext!, title, msg, () {
+      NhentaiNetwork().logged = false;
+      if (cookies.isNotEmpty) {
         cookieJar.deleteUri(Uri.parse(baseUrl));
-        var source = ComicSource.find('nhentai')!;
-        source.data["account"] = null;
-        source.saveData();
-      });
-    }
+      }
+      var source = ComicSource.find('nhentai')!;
+      source.data["account"] = null;
+      source.saveData();
+      showToast(message: "已清除 nhentai 数据".tl);
+    });
   }
 
   @override
@@ -41,9 +41,9 @@ class _NhSettingsState extends State<NhSettings> {
         ),
         ListTile(
           leading: const Icon(Icons.delete_forever),
-          title: Text("${"删除".tl} cookie"),
-          onTap: () => deleteAllCookie(),
-          trailing: const Icon(Icons.arrow_right),
+          title: Text("清除数据".tl),
+          subtitle: Text("清除 Cookie 与登录状态".tl),
+          onTap: () => clearData(),
         )
       ],
     );
