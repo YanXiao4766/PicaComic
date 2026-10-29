@@ -11,6 +11,7 @@ import 'package:pica_comic/components/window_frame.dart';
 import 'package:pica_comic/foundation/app.dart';
 import 'package:pica_comic/foundation/app_page_route.dart';
 import 'package:pica_comic/foundation/log.dart';
+import 'package:pica_comic/foundation/nhentai_ranking_archive.dart';
 import 'package:pica_comic/init.dart';
 import 'package:pica_comic/network/http_client.dart';
 import 'package:pica_comic/pages/auth_page.dart';
@@ -101,6 +102,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      NhentaiRankingArchive.instance.setForeground(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      NhentaiRankingArchive.instance.setForeground(false);
+    }
     bool enableAuth = appdata.settings[13] == "1";
     if (App.isAndroid && appdata.settings[38] == "1") {
       try {
@@ -147,6 +154,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     listenMouseSideButtonToBack();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(NhentaiRankingArchive.instance.start());
+    });
     notifications.init();
     if (appdata.settings[12] == "1") {
       blockScreenshot();

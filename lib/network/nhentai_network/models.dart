@@ -34,6 +34,13 @@ class NhentaiHomePageData{
   NhentaiHomePageData(this.popular, this.latest);
 }
 
+class NhentaiRankingPage {
+  final List<NhentaiComicBrief> comics;
+  final bool reachedEnd;
+
+  const NhentaiRankingPage(this.comics, {required this.reachedEnd});
+}
+
 class NhentaiComic with HistoryMixin{
   String id;
   @override

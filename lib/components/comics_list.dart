@@ -166,6 +166,10 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
 
   Widget? get header => null;
 
+  /// Optional controls below the existing page-jump button. Used by archived
+  /// nhentai rankings; other sources keep their current layout and behavior.
+  Widget? get bottomRightFooter => null;
+
   bool get showPageIndicator => true;
 
   List<ComicTileMenuOption>? get addonMenuOptions => null;
@@ -208,121 +212,66 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
         init: ComicsPageLogic<T>(),
         tag: tag,
         builder: (logic) {
-          if (logic.dividedComics?[logic.current] == null &&
-              logic.message == null &&
-              appdata.settings[25] != "0") {
-            logic.loading = true;
-          }
-          if (logic.loading) {
-            logic.get(getComics);
-            return Column(
-              children: [
-                if (title != null) const Appbar(title: Text("")),
-                removeSliver(header) ?? const SizedBox(),
-                const Expanded(
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              ],
-            );
-          } else if (logic.message != null) {
-            return Column(
-              children: [
-                removeSliver(header) ?? const SizedBox(),
-                Expanded(
-                    child: NetworkError(
-                  message: logic.message ?? "Network Error",
-                  retry: logic.refresh,
-                  withAppbar: title != null,
-                ))
-              ],
-            );
-          } else {
-            if (appdata.settings[25] == "0") {
-              List<T> comics = [];
-              if (appdata.appSettings.fullyHideBlockedWorks) {
-                for (var comic in logic.comics!) {
-                  if (isBlocked(comic) == null) {
-                    comics.add(comic);
-                  }
-                }
-              } else {
-                comics = logic.comics!;
-              }
-              if (comics.isEmpty) {
-                return SmoothCustomScrollView(
-                  slivers: [
-                    if (title != null)
-                      SliverAppbar(
-                        title: Text(title!),
-                        actions: tailing != null ? [tailing!] : null,
-                      ),
-                    if (header != null) header!,
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: buildEmptyView(context),
+          Widget content() {
+            if (logic.dividedComics?[logic.current] == null &&
+                logic.message == null &&
+                appdata.settings[25] != "0") {
+              logic.loading = true;
+            }
+            if (logic.loading) {
+              logic.get(getComics);
+              return Column(
+                children: [
+                  if (title != null) const Appbar(title: Text("")),
+                  removeSliver(header) ?? const SizedBox(),
+                  const Expanded(
+                    child: Center(
+                      child: CircularProgressIndicator(),
                     ),
-                  ],
-                );
-              }
-              Widget body = SmoothCustomScrollView(
-                slivers: [
-                  if (title != null)
-                    SliverAppbar(
-                      title: Text(title!),
-                      actions: tailing != null ? [tailing!] : null,
-                    ),
-                  if (header != null) header!,
-                  SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                        childCount: comics.length, (context, i) {
-                      if (i == comics.length - 1) {
-                        logic.loadNextPage(getComics);
-                      }
-                      return buildItem(context, comics[i]);
-                    }),
-                    gridDelegate: SliverGridDelegateWithComics(),
-                  ),
-                  if (logic.current < (logic.maxPage ?? 114514) &&
-                      logic.loadingData)
-                    const SliverToBoxAdapter(
-                      child: ListLoadingIndicator(),
-                    )
-                  else
-                    const SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 80,
-                      ),
-                    )
+                  )
                 ],
               );
-              if (!enableQuickPageJump) {
-                return body;
-              }
-              return Stack(
+            } else if (logic.message != null) {
+              return Column(
                 children: [
-                  Positioned.fill(child: body),
-                  Positioned(
-                    right: 16,
-                    bottom: 16 + MediaQuery.of(context).padding.bottom,
-                    child: buildQuickPageJumpButton(context, logic),
-                  ),
+                  removeSliver(header) ?? const SizedBox(),
+                  Expanded(
+                      child: NetworkError(
+                    message: logic.message ?? "Network Error",
+                    retry: logic.refresh,
+                    withAppbar: title != null,
+                  ))
                 ],
               );
             } else {
-              List<T> comics = [];
-              if (appdata.appSettings.fullyHideBlockedWorks) {
-                for (var comic in logic.dividedComics![logic.current]!) {
-                  if (isBlocked(comic) == null) {
-                    comics.add(comic);
+              if (appdata.settings[25] == "0") {
+                List<T> comics = [];
+                if (appdata.appSettings.fullyHideBlockedWorks) {
+                  for (var comic in logic.comics!) {
+                    if (isBlocked(comic) == null) {
+                      comics.add(comic);
+                    }
                   }
+                } else {
+                  comics = logic.comics!;
                 }
-              } else {
-                comics = logic.dividedComics![logic.current]!;
-              }
-              if (comics.isEmpty) {
-                return SmoothCustomScrollView(
+                if (comics.isEmpty) {
+                  return SmoothCustomScrollView(
+                    slivers: [
+                      if (title != null)
+                        SliverAppbar(
+                          title: Text(title!),
+                          actions: tailing != null ? [tailing!] : null,
+                        ),
+                      if (header != null) header!,
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: buildEmptyView(context),
+                      ),
+                    ],
+                  );
+                }
+                Widget body = SmoothCustomScrollView(
                   slivers: [
                     if (title != null)
                       SliverAppbar(
@@ -330,84 +279,197 @@ abstract class ComicsPage<T extends BaseComic> extends StatelessWidget {
                         actions: tailing != null ? [tailing!] : null,
                       ),
                     if (header != null) header!,
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: buildEmptyView(context),
+                    SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                          childCount: comics.length, (context, i) {
+                        if (i == comics.length - 1) {
+                          logic.loadNextPage(getComics);
+                        }
+                        return buildItem(context, comics[i]);
+                      }),
+                      gridDelegate: SliverGridDelegateWithComics(),
                     ),
+                    if (logic.current < (logic.maxPage ?? 114514) &&
+                        logic.loadingData)
+                      const SliverToBoxAdapter(
+                        child: ListLoadingIndicator(),
+                      )
+                    else
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: bottomRightFooter == null ? 80 : 160,
+                        ),
+                      )
                   ],
                 );
-              }
-              Widget body = SmoothCustomScrollView(
-                slivers: [
-                  if (title != null)
-                    SliverAppbar(
-                      title: Text(title!),
-                      actions: tailing != null ? [tailing!] : null,
-                    ),
-                  if (header != null) header!,
-                  if (showPageIndicator &&
-                      appdata.settings[64] == "0" &&
-                      logic.maxPage != 1)
-                    buildPageSelector(context, logic),
-                  SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                        childCount: comics.length, (context, i) {
-                      return buildItem(context, comics[i]);
-                    }),
-                    gridDelegate: SliverGridDelegateWithComics(),
-                  ),
-                  if (showPageIndicator &&
-                      appdata.settings[64] == "0" &&
-                      logic.maxPage != 1)
-                    buildPageSelector(context, logic),
-                  SliverPadding(
-                      padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).padding.bottom))
-                ],
-              );
-
-              body = NotificationListener<ScrollUpdateNotification>(
-                onNotification: (notifications) {
-                  if (notifications.scrollDelta != null) {
-                    if (notifications.scrollDelta! > 0 &&
-                        logic.showFloatingButton) {
-                      logic.showFloatingButton = false;
-                      logic.update();
-                    } else if ((notifications.scrollDelta! < 0 ||
-                            notifications.metrics.pixels ==
-                                notifications.metrics.minScrollExtent ||
-                            notifications.metrics.pixels ==
-                                notifications.metrics.maxScrollExtent) &&
-                        !logic.showFloatingButton) {
-                      logic.showFloatingButton = true;
-                      logic.update();
-                    }
-                  }
-                  return false;
-                },
-                child: body,
-              );
-
-              if (showPageIndicator && appdata.settings[64] == "1") {
+                if (!enableQuickPageJump || bottomRightFooter != null) {
+                  return body;
+                }
                 return Stack(
                   children: [
-                    Positioned.fill(
-                      child: body,
-                    ),
+                    Positioned.fill(child: body),
                     Positioned(
-                      left: 0,
-                      right: 12,
-                      top: 0,
-                      bottom: 0,
-                      child: buildPageSelectorRight(context, logic),
-                    )
+                      right: 16,
+                      bottom: 16 + MediaQuery.of(context).padding.bottom,
+                      child: buildQuickPageJumpButton(context, logic),
+                    ),
                   ],
                 );
               } else {
-                return body;
+                List<T> comics = [];
+                if (appdata.appSettings.fullyHideBlockedWorks) {
+                  for (var comic in logic.dividedComics![logic.current]!) {
+                    if (isBlocked(comic) == null) {
+                      comics.add(comic);
+                    }
+                  }
+                } else {
+                  comics = logic.dividedComics![logic.current]!;
+                }
+                if (comics.isEmpty) {
+                  return SmoothCustomScrollView(
+                    slivers: [
+                      if (title != null)
+                        SliverAppbar(
+                          title: Text(title!),
+                          actions: tailing != null ? [tailing!] : null,
+                        ),
+                      if (header != null) header!,
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: buildEmptyView(context),
+                      ),
+                    ],
+                  );
+                }
+                Widget body = SmoothCustomScrollView(
+                  slivers: [
+                    if (title != null)
+                      SliverAppbar(
+                        title: Text(title!),
+                        actions: tailing != null ? [tailing!] : null,
+                      ),
+                    if (header != null) header!,
+                    if (showPageIndicator &&
+                        appdata.settings[64] == "0" &&
+                        logic.maxPage != 1)
+                      buildPageSelector(context, logic),
+                    SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                          childCount: comics.length, (context, i) {
+                        return buildItem(context, comics[i]);
+                      }),
+                      gridDelegate: SliverGridDelegateWithComics(),
+                    ),
+                    if (showPageIndicator &&
+                        appdata.settings[64] == "0" &&
+                        logic.maxPage != 1)
+                      buildPageSelector(context, logic),
+                    SliverPadding(
+                        padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).padding.bottom +
+                                (bottomRightFooter == null ? 0 : 160)))
+                  ],
+                );
+
+                body = NotificationListener<ScrollUpdateNotification>(
+                  onNotification: (notifications) {
+                    if (notifications.scrollDelta != null) {
+                      if (notifications.scrollDelta! > 0 &&
+                          logic.showFloatingButton) {
+                        logic.showFloatingButton = false;
+                        logic.update();
+                      } else if ((notifications.scrollDelta! < 0 ||
+                              notifications.metrics.pixels ==
+                                  notifications.metrics.minScrollExtent ||
+                              notifications.metrics.pixels ==
+                                  notifications.metrics.maxScrollExtent) &&
+                          !logic.showFloatingButton) {
+                        logic.showFloatingButton = true;
+                        logic.update();
+                      }
+                    }
+                    return false;
+                  },
+                  child: body,
+                );
+
+                if (showPageIndicator && appdata.settings[64] == "1") {
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: body,
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 12,
+                        top: 0,
+                        bottom: 0,
+                        child: buildPageSelectorRight(context, logic),
+                      )
+                    ],
+                  );
+                } else {
+                  return body;
+                }
               }
             }
           }
+
+          final child = content();
+          final footer = bottomRightFooter;
+          if (footer == null) return child;
+          final hasItems = (logic.comics?.isNotEmpty ?? false) &&
+              !logic.loading &&
+              logic.message == null;
+          return Stack(children: [
+            Positioned.fill(child: child),
+            Positioned(
+              right: 16,
+              bottom: 16 + MediaQuery.of(context).padding.bottom,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (enableQuickPageJump) ...[
+                    if (hasItems)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: buildQuickPageJumpButton(context, logic),
+                      )
+                    else
+                      Semantics(
+                        button: true,
+                        enabled: false,
+                        label: '没有可跳转的页面',
+                        child: Opacity(
+                            opacity: .5,
+                            child: Material(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer,
+                              borderRadius: BorderRadius.circular(24),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 14),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.find_in_page_outlined,
+                                          size: 18),
+                                      SizedBox(width: 6),
+                                      Text('0/0'),
+                                    ]),
+                              ),
+                            )),
+                      ),
+                    const SizedBox(height: 12),
+                  ],
+                  footer,
+                ],
+              ),
+            ),
+          ]);
         });
 
     if (header != null && UiMode.m1(context)) {

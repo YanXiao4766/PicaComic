@@ -5,6 +5,7 @@ import "package:pica_comic/foundation/app.dart";
 import 'package:pica_comic/network/base_comic.dart';
 import "package:pica_comic/network/res.dart";
 import "package:pica_comic/tools/translations.dart";
+import 'package:pica_comic/pages/nhentai/ranking_history_page.dart';
 
 class CategoryComicsPage extends StatefulWidget {
   const CategoryComicsPage({
@@ -56,6 +57,17 @@ class _CategoryComicsPageState extends State<CategoryComicsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.categoryKey == 'nhentai' &&
+        const ['/language/chinese', '/language/japanese', '/language/english']
+            .contains(widget.param)) {
+      return NhentaiRankingHistoryPage(
+        language: widget.param!.split('/').last,
+        title: widget.category,
+        liveLoader: data.load,
+        category: widget.category,
+        param: widget.param!,
+      );
+    }
     return Scaffold(
       appBar: Appbar(
         title: Text(widget.category),

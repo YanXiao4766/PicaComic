@@ -177,7 +177,12 @@ class _NhentaiComicTile extends ComicTile {
   String get description => comic.lang;
 
   @override
-  Widget get image => AnimatedImage(
+  Widget get image => comic.cover.isEmpty
+      ? const ColoredBox(
+          color: Color(0x22888888),
+          child: Center(child: Icon(Icons.broken_image_outlined)),
+        )
+      : AnimatedImage(
         image: CachedImageProvider(
           comic.cover,
           headers: {

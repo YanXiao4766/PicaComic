@@ -436,6 +436,67 @@ class NhentaiNetwork {
     }
   }
 
+  /// Network probe only: it never opens a verification UI. HTTP errors still
+  /// mean the connection is reachable; the collector reports the real failure.
+  Future<bool> isReachable() async {
+    try {
+      if (cookieJar == null) await init();
+      await dio.head(baseUrl,
+          options: Options(validateStatus: (status) => status != null));
+      return true;
+    } on DioException catch (e) {
+      return e is CloudflareException || e.response != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Res<NhentaiRankingPage>> getRankingPage(
+      String language, NhentaiSort sort, int page) async {
+    final res = await get(_buildCategoryUrl('/language/$language', page, sort));
+    if (res.error) return Res.fromErrorRes(res);
+    return parseRankingPage(res.data, page);
+  }
+
+  /// A missing/changed gallery container is an error, not a successful empty
+  /// board. Pagination reads query parameters rather than unrelated URL digits.
+  Res<NhentaiRankingPage> parseRankingPage(String html, int page) {
+    try {
+      final document = parse(html);
+      final containers = document.querySelectorAll('.index-container');
+      if (containers.isEmpty ||
+          document.querySelector('#challenge-running, #challenge-stage') !=
+              null) {
+        return const Res.error('无法识别榜单页面，可能需要完成站点验证');
+      }
+      final galleries =
+          containers.expand((c) => c.querySelectorAll('div.gallery'));
+      final comics = galleries.map(parseComic).toList();
+      if (comics.isEmpty) {
+        return const Res.error('榜单没有有效编号，未覆盖本地记录');
+      }
+      final pagination = document.querySelector('section.pagination');
+      int? lastPage;
+      final last = pagination?.querySelector('a.last')?.attributes['href'];
+      if (last != null) {
+        lastPage = int.tryParse(Uri.parse(last).queryParameters['page'] ?? '');
+      }
+      final next = pagination?.querySelector('a.next, a[rel="next"]');
+      final numberedNext = pagination?.querySelectorAll('a[href]').any((a) {
+            final target = Uri.tryParse(a.attributes['href'] ?? '');
+            final number = int.tryParse(target?.queryParameters['page'] ?? '');
+            return number != null && number > page;
+          }) ??
+          false;
+      return Res(NhentaiRankingPage(comics,
+          reachedEnd: lastPage != null
+              ? page >= lastPage
+              : next == null && !numberedNext));
+    } catch (e) {
+      return Res.error('无法解析榜单：$e');
+    }
+  }
+
   Future<Res<List<NhentaiComicBrief>>> getCategoryComics(
       String path, int page, NhentaiSort sort) async {
     var res = await get(_buildCategoryUrl(path, page, sort));
